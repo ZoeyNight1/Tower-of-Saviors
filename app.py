@@ -43,7 +43,7 @@ def handle_message(event):
                 reply = "請先輸入上限，例如：上限 150"
             else:
                 missing, full_time = calculate_full_time(max_stamina, current)
-                reply = f"你還缺 {missing} 體力，預計在 {full_time.strftime('%H:%M')} 回滿！"
+                reply = f"你還缺 {missing} 體力，預計在 {full_time.strftime('%Y/%m/%d %H:%M')} 回滿！"
         except:
             reply = "請輸入正確格式，例如：目前 123"
     else:
