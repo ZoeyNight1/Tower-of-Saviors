@@ -27,67 +27,63 @@ def handle_message(event):
     user_id = event.source.user_id
     text = event.message.text.strip()
 
-    if text.startswith("上限"):
+    max_stamina = None
+    current_stamina = None
+
+    if "上限" in text and "目前" in text:
+        try:
+            max_part = text.split("上限")[1].split("目前")[0].strip()
+            cur_part = text.split("目前")[1].strip()
+            max_stamina = int(max_part)
+            current_stamina = int(cur_part)
+            set_max_stamina(user_id, max_stamina)
+            missing, full_time = calculate_full_time(max_stamina, current_stamina)
+            reply = (
+                f"已設定體力上限為 {max_stamina}，目前體力 {current_stamina}\n"
+                f"你還缺 {missing} 體力，預計在 {full_time.strftime('%Y/%m/%d %H:%M')} 回滿"
+            )
+        except:
+            reply = "請輸入正確格式，例如：上限150 目前123"
+
+    elif text.startswith("上限"):
         try:
             max_stamina = int(text.replace("上限", "").strip())
             set_max_stamina(user_id, max_stamina)
             reply = f"已設定體力上限為 {max_stamina}"
         except:
-            reply = "請輸入正確格式，例如：上限 150"
+            reply = "請輸入正確格式，例如：上限150"
 
     elif text.startswith("目前"):
-        parts = text.split()
-        if len(parts) == 3:
-            try:
-                current = int(parts[1])
-                time_str = parts[2]
+        try:
+            current_stamina = int(text.replace("目前", "").strip())
+            max_stamina = get_max_stamina(user_id)
+            if not max_stamina:
+                reply = "請先輸入上限，例如：上限150"
+            else:
+                missing, full_time = calculate_full_time(max_stamina, current_stamina)
+                reply = f"你還缺 {missing} 體力，預計在 {full_time.strftime('%Y/%m/%d %H:%M')} 回滿"
+        except:
+            reply = "請輸入正確格式，例如：目前123"
+    elif text.startswith("目前") and len(text.split()) == 2:
+        try:
+            part = text.split()
+            current = int(part[0].replace("目前", "").strip())
+            target_time = datetime.strptime(part[1], "%Y/%m/%d %H:%M")
 
-                if len(time_str) == 16:
-                    target_time = datetime.strptime(time_str, "%Y/%m/%d %H:%M")
-                elif len(time_str) == 11:
-                    year = datetime.now().year
-                    target_time = datetime.strptime(f"{year}/{time_str}", "%Y/%m/%d %H:%M")
-                else:
-                    raise ValueError("時間格式錯誤")
+            now = datetime.now()
+            delta = (target_time - now).total_seconds()
+            if delta < 0:
+                reply = "你輸入的時間已經過去了喔"
+            else:
+                recovered = int(delta // 480)  # 8分鐘回1點體
+                estimated = current + recovered
+                reply = f"預計到 {part[1]} 你會回到 {estimated} 體力"
+        except Exception as e:
+            reply = "請輸入正確格式，例如：目前123 2025/04/13 08:30"
 
-                now = datetime.now()
-                minutes_diff = int((target_time - now).total_seconds() / 60)
-                recovered = max(0, minutes_diff // 8)
-
-                max_stamina = get_max_stamina(user_id)
-                if not max_stamina:
-                    reply = "請先輸入上限，例如：上限 150"
-                else:
-                    new_stamina = current + recovered
-                    reply = (
-                        f"從現在到 {target_time.strftime('%Y/%m/%d %H:%M')}，\n"
-                        f"預計恢復 {recovered} 點體力，\n"
-                        f"總體力為 {min(new_stamina, max_stamina)}（上限為 {max_stamina}）"
-                    )
-            except:
-                reply = "請確認格式與日期時間正確，例如：目前 123 2025/04/15 08:30"
-
-        elif len(parts) == 2:
-            try:
-                current = int(parts[1])
-                max_stamina = get_max_stamina(user_id)
-                if not max_stamina:
-                    reply = "請先輸入上限，例如：上限 150"
-                else:
-                    missing, full_time = calculate_full_time(max_stamina, current)
-                    reply = f"你還缺 {missing} 體力，預計在 {full_time.strftime('%Y/%m/%d %H:%M')} 回滿"
-            except:
-                reply = "請輸入正確格式，例如：目前 123"
-
-        else:
-            reply = (
-                "請輸入正確格式，例如：\n"
-                "目前 123\n"
-                "或 目前 123 2025/04/15 08:30"
-            )
 
     else:
-        reply = "請輸入「上限 150」或「目前 123」來使用體力計算功能。"
+        reply = "請輸入「上限150 目前123」或「上限150」、「目前123」來使用體力計算功能。"
 
     line_bot_api.reply_message(
         event.reply_token,
